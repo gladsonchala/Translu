@@ -1,2 +1,7 @@
+certifi
+charset-normalizer
+idna
+pickle-mixin
+requests
 telebot
-pysqlite3
+urllib3
