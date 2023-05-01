@@ -1,1 +1,1 @@
-# Gami-Stripetest
+# Translatorbot
