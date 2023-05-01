@@ -1,6 +1,7 @@
 #6262707708:AAHYbgPIsDrNezEu4hNRoUZQEZRIpbqey-Y
 
 import telebot
+import sqlite3
 import requests
 import json
 import urllib.parse
@@ -133,6 +134,15 @@ languages = {
 
 
 
+# Connect to SQLite database
+conn = sqlite3.connect('user_data.db')
+c = conn.cursor()
+
+# Create table to store user data if it doesn't exist
+c.execute('''CREATE TABLE IF NOT EXISTS user_data
+             (user_id INTEGER PRIMARY KEY, lang_code TEXT)''')
+conn.commit()
+
 # Define the inline query handler function
 def inlinequery(inline_query):
     if not inline_query.query:
@@ -140,10 +150,7 @@ def inlinequery(inline_query):
     try:
         # Get the user's preferred target language
         user_id = inline_query.from_user.id
-        if user_id in user_data:
-            target_lang = user_data[user_id]
-        else:
-            target_lang = 'om' # default to Oromic if no preferred language is set
+        target_lang = get_user_language(user_id)
         # Translate the query text
         translation = translate_text(inline_query.query, target_lang)
         # Create an inline query result article with the original and translated text
@@ -172,8 +179,6 @@ def start(message):
 def set_language_handler(message):
     set_language(message)
 
-
-
 # Set target language
 @bot.message_handler(commands=['set'])
 def set_language(message):
@@ -183,35 +188,25 @@ def set_language(message):
         markup.add(button)
     bot.send_message(message.chat.id, 'Choose your preferred target language:', reply_markup=markup)
 
-
 # Handle callback data from InlineKeyboardButton
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(callback_query: telebot.types.CallbackQuery):
     lang_code = callback_query.data
     user_id = callback_query.from_user.id
     bot.answer_callback_query(callback_query.id)
-    # store the preferred language in a dictionary
-    user_data[user_id] = lang_code
+    # store the preferred language in the database
+    set_user_language(user_id, lang_code)
     # send a message to confirm the language selection
     bot.send_message(user_id, f"Your preferred language has been set to {lang_code}")
-
-
-# Dictionary to store user's preferred target language
-user_data = {}
-
 
 # Translate message
 @bot.message_handler(func=lambda message: True)
 def translate(message: telebot.types.Message):
     chat_id = message.chat.id
     user_id = message.from_user.id
-    if user_id in user_data:
-        target_lang = user_data[user_id]
-    else:
-        target_lang = 'om' # default to Oromic if no preferred language is set
+    target_lang = get_user_language(user_id)
     translated_text = translate_text(message.text, target_lang)
     bot.send_message(chat_id, translated_text)
-
 
 # Translate text function
 def translate_text(text, target_lang):
@@ -231,8 +226,6 @@ def translate_text(text, target_lang):
     translated_text = ''.join(translated_lines).strip()
     return translated_text
 
-
-
 # Handle "Set Language" button
 @bot.message_handler(func=lambda message: message.text == 'Set Language')
 def handle_set_language(message):
@@ -243,5 +236,19 @@ def handle_set_language(message):
 def handle_inline_query(query):
     inlinequery(query)
 
+# Function to get user's preferred target language from the database
+def get_user_language(user_id):
+    c.execute("SELECT lang_code FROM user_data WHERE user_id=?", (user_id,))
+    result = c.fetchone()
+    if result:
+        return result[0]
+    else:
+        # Default to Oromic if no preferred language is set
+        return 'om'
+
+# Function to set user's preferred target language in the database
+def set_user_language(user_id, lang_code):
+    c.execute("INSERT OR REPLACE INTO user_data (user_id, lang_code) VALUES (?, ?)", (user_id, lang_code))
+    conn.commit()
 
 bot.polling()
