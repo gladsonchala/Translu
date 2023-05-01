@@ -1,11 +1,12 @@
 #6262707708:AAHYbgPIsDrNezEu4hNRoUZQEZRIpbqey-Y
 
 import telebot
-import sqlite3
 import requests
 import json
 import urllib.parse
 import logging
+import os.path
+import pickle
 from telebot import types
 from telebot.types import Update
 
@@ -134,26 +135,21 @@ languages = {
 
 
 
-# Connect to SQLite database
-conn = sqlite3.connect('user_data.db')
-c = conn.cursor()
+user_data_file = 'user_data.pkl'
 
-# Create table to store user data if it doesn't exist
-c.execute('''CREATE TABLE IF NOT EXISTS user_data
-             (user_id INTEGER PRIMARY KEY, lang_code TEXT)''')
-conn.commit()
+if os.path.isfile(user_data_file):
+    with open(user_data_file, 'rb') as f:
+        user_data = pickle.load(f)
+else:
+    user_data = {}
 
-# Define the inline query handler function
 def inlinequery(inline_query):
     if not inline_query.query:
         return
     try:
-        # Get the user's preferred target language
         user_id = inline_query.from_user.id
         target_lang = get_user_language(user_id)
-        # Translate the query text
         translation = translate_text(inline_query.query, target_lang)
-        # Create an inline query result article with the original and translated text
         results = [
             telebot.types.InlineQueryResultArticle(
                 id=inline_query.id,
@@ -162,12 +158,10 @@ def inlinequery(inline_query):
                 input_message_content=telebot.types.InputTextMessageContent(translation)
             )
         ]
-        # Send the results to the user
         bot.answer_inline_query(inline_query.id, results, cache_time=1, is_personal=True, switch_pm_text="Switch to chat mode", switch_pm_parameter="start")
     except Exception as e:
         logging.error(str(e))
 
-# Welcome message
 @bot.message_handler(commands=['start'])
 def start(message):
     markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
@@ -179,28 +173,22 @@ def start(message):
 def set_language_handler(message):
     set_language(message)
 
-# Set target language
 @bot.message_handler(commands=['set'])
 def set_language(message):
-    markup = types.InlineKeyboardMarkup()
-    markup.row_width = 2
+    markup = types.InlineKeyboardMarkup(row_width=2)
     for language in languages:
         button = types.InlineKeyboardButton(text=language, callback_data=languages[language])
         markup.add(button)
     bot.send_message(message.chat.id, 'Choose your preferred target language:', reply_markup=markup)
 
-# Handle callback data from InlineKeyboardButton
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(callback_query: telebot.types.CallbackQuery):
     lang_code = callback_query.data
     user_id = callback_query.from_user.id
     bot.answer_callback_query(callback_query.id)
-    # store the preferred language in the database
     set_user_language(user_id, lang_code)
-    # send a message to confirm the language selection
     bot.send_message(user_id, f"Your preferred language has been set to {lang_code}")
 
-# Translate message
 @bot.message_handler(func=lambda message: True)
 def translate(message: telebot.types.Message):
     chat_id = message.chat.id
@@ -209,7 +197,6 @@ def translate(message: telebot.types.Message):
     translated_text = translate_text(message.text, target_lang)
     bot.send_message(chat_id, translated_text)
 
-# Translate text function
 def translate_text(text, target_lang):
     url = 'https://translate.googleapis.com/translate_a/single'
     params = {
@@ -227,29 +214,23 @@ def translate_text(text, target_lang):
     translated_text = ''.join(translated_lines).strip()
     return translated_text
 
-# Handle "Set Language" button
 @bot.message_handler(func=lambda message: message.text == 'Set Language')
 def handle_set_language(message):
     set_language(message)
 
-# Handle inline queries
 @bot.inline_handler(lambda query: True)
 def handle_inline_query(query):
     inlinequery(query)
 
-# Function to get user's preferred target language from the database
 def get_user_language(user_id):
-    c.execute("SELECT lang_code FROM user_data WHERE user_id=?", (user_id,))
-    result = c.fetchone()
-    if result:
-        return result[0]
+    if user_id in user_data:
+        return user_data[user_id]
     else:
-        # Default to Oromic if no preferred language is set
         return 'om'
 
-# Function to set user's preferred target language in the database
 def set_user_language(user_id, lang_code):
-    c.execute("INSERT OR REPLACE INTO user_data (user_id, lang_code) VALUES (?, ?)", (user_id, lang_code))
-    conn.commit()
+    user_data[user_id] = lang_code
+    with open(user_data_file, 'wb') as f:
+        pickle.dump(user_data, f)
 
 bot.polling()
