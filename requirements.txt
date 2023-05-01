@@ -1,7 +1,1 @@
-certifi
-charset-normalizer
-idna
-pickle-mixin
-requests
 telebot
-urllib3
