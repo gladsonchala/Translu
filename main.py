@@ -175,7 +175,8 @@ def set_language_handler(message):
 
 @bot.message_handler(commands=['set'])
 def set_language(message):
-    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup = types.InlineKeyboardMarkup()
+		 markup.row_width = 2
     for language in languages:
         button = types.InlineKeyboardButton(text=language, callback_data=languages[language])
         markup.add(button)
