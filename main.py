@@ -9,7 +9,7 @@ from telebot.types import Update
 
 
 # Replace YOUR_TOKEN with your Telegram bot token
-bot = telebot.TeleBot('6262707708:AAHlUuWEa3kbfufSpoy8ljHAZP9ew0Lb7E8')
+bot = telebot.TeleBot('7541074711:AAFDRtrdcx_91CAzhWv5G_LpXItFEiCORwo')
 
 # Set up logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
